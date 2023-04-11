@@ -1,223 +1,296 @@
 <template>
   <div class="table-box">
-    <h2 class="title">CRUD</h2>
-
+    <!-- 标题 -->
+    <div class="title">
+      <h2>最简单的 CRUD Demo</h2>
+    </div>
+    <!-- query -->
     <div class="query-box">
-      <el-input class="el-inp" v-model="inputQuery" placeholder="请搜索姓名" />
-      <div>
-        <el-button type="primary" @click="handleAdd('add')">增加</el-button>
-        <el-button
-          type="danger"
-          @click="handleMultipleDelete()"
-          v-if="batchDeleteList.length > 0"
-        >删除选中</el-button>
+      <el-input class="query-input" v-model="queryInput" placeholder="请输入姓名搜索🔍" @change="handleQueryName"/>
+      <div class="btn-list">
+        <el-button type="primary" @click="handleAdd">增加</el-button>
+        <el-button type="danger" @click="handleDelList" v-if="multipleSelection.length > 0">删除多选</el-button>
       </div>
     </div>
-
+    <!-- table -->
     <el-table
-      border
-      :data="tableData"
-      style="width: 100%"
-      @selection-change="handleSelectionChange"
-      ref="tableRef"
+        border
+        ref="multipleTableRef"
+        :data="tableData"
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
     >
-      <el-table-column type="selection" width="55" />
-      <el-table-column prop="name" label="姓名" width="120" />
-      <el-table-column prop="phone" label="电话" width="120" />
-      <el-table-column prop="email" label="邮箱" width="200" />
-      <el-table-column prop="state" label="状态" width="120" />
-      <el-table-column prop="address" label="地址" width="300" />
-      <el-table-column fixed="right" label="操作" width="120" align="center">
+      <el-table-column type="selection" width="55"/>
+      <el-table-column prop="Name" label="姓名" width="120"/>
+      <el-table-column prop="Email" label="邮箱" width="200"/>
+      <el-table-column prop="Phone" label="电话" width="120"/>
+      <el-table-column prop="State" label="状态" width="120"/>
+      <el-table-column prop="Address" label="地址" width="300"/>
+
+      <el-table-column fixed="right" label="操作" width="120">
         <template #default="scope">
-          <el-button
-            link
-            type="primary"
-            style="color: #E47470"
-            size="small"
-            @click="handleDelete(scope.row)"
-          >删除</el-button>
-          <el-button link type="primary" size="small" @click="handleEdit('edit',scope.row)">编辑</el-button>
+          <el-button link type="primary" size="small" @click="handleRowDel(scope.row)" style="color: #F56C6C">
+            删除
+          </el-button>
+          <el-button link type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
         </template>
       </el-table-column>
-    </el-table>
 
-    <!-- 增加和编辑的dialog -->
-    <el-dialog v-model="dialogFormVisible" draggable width="40%">
-      <template #header>{{ dialogTitle }}</template>
-      <el-form :model="dialogForm">
-        <el-form-item label="姓名">
-          <el-input v-model="dialogForm.name" autocomplete="off" />
+    </el-table>
+    <el-pagination
+        background
+        layout="prev, pager, next"
+        style="display: flex;justify-content: center;margin-top: 10px;"
+        :total="total"
+        v-model:current-page="curPage"
+        @current-change="handleChangePage"
+    />
+
+    <!-- dialog -->
+    <el-dialog v-model="dialogFormVisible" :title="dialogType === 'add' ? '新增' : '编辑'">
+      <el-form :model="tableForm">
+        <el-form-item label="姓名" :label-width="80">
+          <el-input v-model="tableForm.Name" autocomplete="off"/>
         </el-form-item>
-        <el-form-item label="电话">
-          <el-input v-model="dialogForm.phone" autocomplete="off" />
+        <el-form-item label="邮箱" :label-width="80">
+          <el-input v-model="tableForm.Email" autocomplete="off"/>
         </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="dialogForm.email" autocomplete="off" />
+        <el-form-item label="电话" :label-width="80">
+          <el-input v-model="tableForm.Phone" autocomplete="off"/>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-input v-model="dialogForm.state" autocomplete="off" />
+        <el-form-item label="状态" :label-width="80">
+          <el-input v-model="tableForm.State" autocomplete="off"/>
         </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="dialogForm.address" autocomplete="off" />
+        <el-form-item label="地址" :label-width="80">
+          <el-input v-model="tableForm.Address" autocomplete="off"/>
         </el-form-item>
       </el-form>
-
       <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="handleDialogCancel">取消</el-button>
-          <el-button type="primary" @click="handleDialogConfirm">确认</el-button>
-        </div>
+      <span class="dialog-footer">
+        <el-button type="primary" @click="dialogConfirm">
+          确认
+        </el-button>
+      </span>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
-// ------------------- 数据 -------------------
-// 注意点 : 需要 watch 监听, 则不能使用 $ref
-let inputQuery = ref(""); // 搜索框数据
+
+import {ref} from "vue";
+import request from "./utils/request.js"
+import { dataType } from "element-plus/es/components/table-v2/src/common";
+
+/* 数据 */
+let queryInput = $ref("")
 let tableData = $ref([
   {
-    id: 1,
-    name: "Tom1",
-    state: "California",
+    id: "1",
+    name: 'Tom1',
+    email: "123@qq.com",
     phone: "13800138000",
-    email: "13800138000@qq.com",
-    address: "No. 189, Grove St, Los Angeles"
+    state: 'California',
+    address: 'No. 189, Grove St, Los Angeles',
   },
   {
-    id: 2,
-    name: "Tom2",
-    state: "California",
+    id: "2",
+    name: 'Tom2',
+    email: "123@qq.com",
     phone: "13800138000",
-    email: "13800138000@qq.com",
-    address: "No. 189, Grove St, Los Angeles"
+    state: 'California',
+    address: 'No. 189, Grove St, Los Angeles',
   },
   {
-    id: 3,
-    name: "Tom3",
-    state: "California",
+    id: "3",
+    name: 'Tom3',
+    email: "123@qq.com",
     phone: "13800138000",
-    email: "13800138000@qq.com",
-    address: "No. 189, Grove St, Los Angeles"
+    state: 'California',
+    address: 'No. 189, Grove St, Los Angeles',
   },
   {
-    id: 4,
-    name: "Tom4",
-    state: "California",
+    id: "4",
+    name: 'Tom4',
+    email: "123@qq.com",
     phone: "13800138000",
-    email: "13800138000@qq.com",
-    address: "No. 189, Grove St, Los Angeles"
-  }
-]); // 表格数据
-let copyTableData = Object.assign(tableData); // 浅拷贝表格数据
-let dialogFormVisible = $ref(false); // 弹窗显示状态
-let dialogType = $ref("add"); // 弹窗状态
-let dialogTitle = $ref("新增"); // 弹窗名称
-let dialogForm = $ref({}); // 弹窗内容信息
-let batchDeleteList = $ref([]); // 多选的需要批量删除的列表
-// ------------------- 选中元素 -------------------
-const tableRef = ref(); // ref 选中元素
-// ------------------- 方法 -------------------
-// 监听搜索框
-watch(inputQuery, val => {
+    state: 'California',
+    address: 'No. 189, Grove St, Los Angeles',
+  },
+])
+
+let tableDataCopy = Object.assign(tableData)
+
+let multipleSelection = $ref([])
+let dialogFormVisible = $ref(false)
+let tableForm = $ref({
+  name: '张三',
+  email: "123@qq.com",
+  phone: "13800138000",
+  state: "在职",
+  address: "广东省"
+})
+let dialogType = $ref('add')
+
+let total = $ref(10)
+let curPage = $ref(1)
+
+/* 方法 */
+
+// 请求table数据 / 分页
+const getTableData = async (cur = 1) => {
+
+  // 第一种请求方式
+  // let res = await request.get(`/list/?pageSize=10&pageNum=${cur}`)
+  // console.log(res);
+
+  // 第二种请求方式
+  let res = await request.get('', {
+    pageSize: 10,
+    pageNo: cur
+  })
+  // console.log(res);
+  tableData = res.list
+  total = res.total
+  curPage = res.pageNo
+}
+getTableData(1)
+
+/* 请求分页 */
+
+const handleChangePage = (val) => {
+  getTableData(curPage)
+}
+
+
+// 搜索
+const handleQueryName = async (val) => {
+  // console.log(val);
+  // console.log(queryInput);
+  // console.log(val);
+  // if (val.length > 0) {
+  //   tableData = tableData.filter(item => (item.name).toLowerCase().match(val.toLowerCase()))
+  // } else {
+  //   tableData = tableDataCopy
+  // }
+  console.log(val);
+
+
   if (val.length > 0) {
-    // 过滤自己的name然后使用match正则匹配输入的name
-    // toLowerCase 是为了统一名称都是小写, 方便检索
-    tableData = tableData.filter(item =>
-      item.name.toLowerCase().match(val.toLowerCase())
-    );
+    let tmp = await request.get(`${val}`)
+    tableData = [tmp]
   } else {
-    tableData = copyTableData;
+    await getTableData(curPage)
   }
-});
-// 表格多选
-const handleSelectionChange = row => {
-  batchDeleteList = [];
-  // 循环遍历数据 , 获取里面的所有 id 放到数组中
-  row.forEach(item => {
-    batchDeleteList.push(item.id);
-  });
-};
-// 多选删除
-const handleMultipleDelete = () => {
-  // 循环遍历多个数据
-  batchDeleteList.forEach(id => {
-    handleDelete({ id });
-  });
-  // 清空选中的需要批量删除的数组
-  batchDeleteList = [];
-  // 清除目前选中的选择框
-  tableRef.value.clearSelection();
-};
-// 删除
-const handleDelete = row => {
-  // 1. 查找索引
-  let index = tableData.findIndex(item => item.id === row.id);
-  // 2. 根据索引删除对应选项
-  tableData.splice(index, 1);
-};
+}
+
 // 编辑
-const handleEdit = (type, row) => {
-  dialogStateModify(type);
-  // 把目前所选中的数据全部放到 form 表单中
-  dialogForm = { ...row };
-};
-// 增加
-const handleAdd = type => {
-  dialogStateModify(type);
-  // 表单清空
-  dialogForm = {};
-};
-// 弹窗状态修改
-const dialogStateModify = type => {
-  dialogFormVisible = true;
-  dialogType = type;
-  if (dialogType === "add") {
-    dialogTitle = "新增";
-  } else {
-    dialogTitle = "编辑";
-  }
-};
-// 弹窗取消
-const handleDialogCancel = () => {
-  dialogFormVisible = false;
-};
-// 弹窗确认
-const handleDialogConfirm = () => {
-  dialogFormVisible = false;
+const handleEdit = (row) => {
+  dialogFormVisible = true
+  dialogType = 'edit'
+  tableForm = {...row}
+}
+
+
+// 删除一条
+const handleRowDel = async ({ID}) => {
+  // console.log(id)
+  // // 1. 通过id获取到条目对应的 索引值
+  // let index = tableData.findIndex(item => item.id === id)
+  // // 2. 通过索引值进行删除对应条目
+  // tableData.splice(index, 1)
+
+  await request.delete(`${ID}`)
+  await getTableData(curPage)
+
+}
+const handleDelList = () => {
+  multipleSelection.forEach(ID => {
+    handleRowDel({ID})
+  })
+  multipleSelection = []
+}
+// 选中
+const handleSelectionChange = (val) => {
+  // multipleSelection = val
+  // console.log(val);
+  multipleSelection = []
+
+  val.forEach(item => {
+    multipleSelection.push(item.ID)
+  })
+}
+
+
+// 新增
+const handleAdd = () => {
+  dialogFormVisible = true
+  tableForm = {}
+  dialogType = 'add'
+}
+// 确认
+const dialogConfirm = async () => {
+  dialogFormVisible = false
+
   // 1. 判断是新增还是编辑
-  if (dialogType === "add") {
-    // 1.1. 添加数据
-    tableData.push({
-      id: tableData.length + 1,
-      ...dialogForm
-    });
-  } else if (dialogType === "edit") {
-    // 2.1. 获取form中的数据的id , 找出对应的索引值
-    // 2.2. 编辑数据
-    let index = tableData.findIndex(item => dialogForm.id === item.id);
-    tableData[index] = dialogForm;
+  if (dialogType === 'add') {
+    // 1. 拿到数据
+    // 2. 添加到table
+    // tableData.push({
+    //   id: (tableData.length + 1).toString(),
+    //   ...tableForm
+    // })
+
+    // 添加数据
+    await request.post("", {
+      ...tableForm
+    })
+    // 刷新数据
+    await getTableData(curPage)
+
+
+  } else {
+    // 1. 获取到当前的这条的索引
+
+    // let index = tableData.findIndex(item => item.id === tableForm.id)
+    // // console.log(index);
+    //
+    // // 2. 替换当前索引值对应的数据
+    // tableData[index] = tableForm
+
+
+    // 修改 内容
+    await request.put(`${tableForm.ID}`, {
+      ...tableForm
+    })
+
+    // 刷新数据
+    await getTableData(curPage)
+
+
   }
-};
+}
+
+
 </script>
 
-<style>
+<style scoped>
 .table-box {
-  width: 800px;
   margin: 200px auto;
+  width: 800px;
 }
+
 .title {
   text-align: center;
 }
+
 .query-box {
-  margin-bottom: 20px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  margin-bottom: 20px;
 }
-.el-inp {
+
+.query-input {
   width: 200px;
 }
 </style>
